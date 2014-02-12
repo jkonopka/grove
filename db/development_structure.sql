@@ -184,7 +184,7 @@ CREATE TABLE posts (
     published boolean DEFAULT true NOT NULL,
     protected text,
     sensitive text,
-    golive_at timestamp without time zone,
+    publish_at timestamp without time zone,
     expire_at timestamp without time zone
 );
 
@@ -461,17 +461,17 @@ CREATE INDEX index_posts_on_expire_at ON posts USING btree (expire_at);
 
 
 --
--- Name: index_posts_on_golive_at; Type: INDEX; Schema: public; Owner: -; Tablespace: 
---
-
-CREATE INDEX index_posts_on_golive_at ON posts USING btree (golive_at);
-
-
---
 -- Name: index_posts_on_klass; Type: INDEX; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE INDEX index_posts_on_klass ON posts USING btree (klass);
+
+
+--
+-- Name: index_posts_on_publish_at; Type: INDEX; Schema: public; Owner: -; Tablespace: 
+--
+
+CREATE INDEX index_posts_on_publish_at ON posts USING btree (publish_at);
 
 
 --

@@ -136,7 +136,7 @@ class GroveV1 < Sinatra::Base
     halt 404, "Post is deleted" if @post.deleted?
     response.status = 201 if @post.new_record?
 
-    allowed_attributes = ['external_document', 'document', 'sensitive', 'paths', 'occurrences', 'tags', 'external_id', 'restricted', 'published', "golive_at", "expire_at"]
+    allowed_attributes = ['external_document', 'document', 'sensitive', 'paths', 'occurrences', 'tags', 'external_id', 'restricted', 'published', "publish_at", "expire_at"]
     # Gods have some extra fields they may update
     if current_identity.god?
       allowed_attributes += ['created_at', 'created_by', 'protected']
@@ -312,7 +312,7 @@ class GroveV1 < Sinatra::Base
         sort_field = 'created_at'
         if params['sort_by']
           sort_field = params['sort_by'].downcase
-          halt 400, "Unknown field #{sort_field}" unless %w(created_at updated_at document_updated_at external_document_updated_at external_document).include? sort_field
+          halt 400, "Unknown field #{sort_field}" unless %w(created_at updated_at document_updated_at external_document_updated_at publish_at expire_at external_document).include? sort_field
         end
         @posts = Post.unscoped.by_uid(uid).with_restrictions(current_identity).filtered_by(params)
         @posts = apply_occurrence_scope(@posts, params['occurrence'])

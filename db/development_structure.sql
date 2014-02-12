@@ -3,6 +3,7 @@
 --
 
 SET statement_timeout = 0;
+SET lock_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SET check_function_bodies = false;
@@ -92,8 +93,8 @@ CREATE TABLE locations (
     label_7 text,
     label_8 text,
     label_9 text,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
+    created_at timestamp without time zone NOT NULL,
+    updated_at timestamp without time zone NOT NULL
 );
 
 
@@ -135,8 +136,8 @@ CREATE TABLE occurrence_entries (
     label text,
     post_id integer,
     at timestamp without time zone,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
+    created_at timestamp without time zone NOT NULL,
+    updated_at timestamp without time zone NOT NULL
 );
 
 
@@ -182,7 +183,9 @@ CREATE TABLE posts (
     conflicted boolean DEFAULT false NOT NULL,
     published boolean DEFAULT true NOT NULL,
     protected text,
-    sensitive text
+    sensitive text,
+    golive_at timestamp without time zone,
+    expire_at timestamp without time zone
 );
 
 
@@ -448,6 +451,20 @@ CREATE INDEX index_posts_on_created_by ON posts USING btree (created_by);
 --
 
 CREATE INDEX index_posts_on_deleted ON posts USING btree (deleted);
+
+
+--
+-- Name: index_posts_on_expire_at; Type: INDEX; Schema: public; Owner: -; Tablespace: 
+--
+
+CREATE INDEX index_posts_on_expire_at ON posts USING btree (expire_at);
+
+
+--
+-- Name: index_posts_on_golive_at; Type: INDEX; Schema: public; Owner: -; Tablespace: 
+--
+
+CREATE INDEX index_posts_on_golive_at ON posts USING btree (golive_at);
 
 
 --

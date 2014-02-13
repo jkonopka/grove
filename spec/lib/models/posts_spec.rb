@@ -111,9 +111,9 @@ describe Post do
 
     context "filters tags" do
       before(:each) do
-        Post.create!(:uid => "post.card:x.y.z", :tags => ["paris", "france"], :document => {'text' => '1'})
-        Post.create!(:uid => "post.card:x.y.z", :tags => ["paris", "texas"], :document => {'text' => '2'})
-        Post.create!(:uid => "post.card:x.y.z", :tags => ["lyon", "france"], :document => {'text' => '3'})
+        Post.create!(:uid => "post.card:x.y.z", :tags => ["paris", "france"], :document => {'text' => '1'}, :publish_at => Time.now.utc, :expire_at => Time.now.utc+1300)
+        Post.create!(:uid => "post.card:x.y.z", :tags => ["paris", "texas"], :document => {'text' => '2'}, :publish_at => Time.now.utc+1300, :expire_at => Time.now.utc+3600)
+        Post.create!(:uid => "post.card:x.y.z", :tags => ["lyon", "france"], :document => {'text' => '3'}, :publish_at => Time.now.utc-1300, :expire_at => Time.now.utc)
       end
 
       specify "exclusively" do
@@ -123,6 +123,18 @@ describe Post do
       it "with an exclusive AND" do
         Post.with_tags(["paris", "france"]).all.map{|p| p.document['text']}.sort.should eq ['1']
       end
+    end
+
+    context "filter by publish_at/expire_at" do
+
+      it "without published_time" do
+        Post.filtered_by("not deleted").all.map {|p| p.document['text']}.sort.should eq ['1','2','3']
+      end
+
+      it "with published_time" do
+        Post.filtered_by("published_time").all.map {|p| p.document['text']}.sort.should eq ['1']
+      end
+
     end
 
     describe "wildcard path matches" do

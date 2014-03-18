@@ -179,11 +179,11 @@ describe Post do
       end
 
       it "reads from the cache" do
-        article.document = 'sentinel'
+        article.document = {'key' => 'sentinel'}
         $memcached.set(article.cache_key, article.attributes.to_json)
 
         posts = Post.cached_find_all_by_uid([Pebbles::Uid.cache_key(article.uid)])
-        posts.first.document.should eq 'sentinel'
+        posts.first.document.should eq({'key' => 'sentinel'})
       end
 
       it "respects order in the request" do
@@ -305,64 +305,85 @@ describe Post do
     end
   end
 
-  describe "document store" do
+  describe 'external documents' do
 
-    context "without external document" do
-      it "isn't conflicted" do
-        article.conflicted?.should == false
-      end
-    end
-
-    context "with only an external document" do
-      it "isn't conflicted" do
-        doc = Post.create!(default_attributes.merge(:document => nil, :external_document => {'text' => '1'}))
-        doc.conflicted?.should == false
-      end
-    end
-
-    # The document store in `post` consists of
-    # :external_document
-    # :document
-    # :merged_document (read-only)
-    #
-    # The external document is only relevant if the post is
-    # imported from or synced with an external source.
-    #
-    # The document will in this case be used to override the
-    # values of selected keys.
-    #
-    # The merged document is the combination of the two.
-
-    let(:memo) do
+    let :truth do
       {'observed' => 'explosion', 'cause' => 'alien aircraft crash'}
     end
 
-    let(:lies) do
-      {}
+    let :lies do
+      {'casualties' => 'none'}
     end
 
-    let(:press_release_attributes) do
-      default_attributes.merge(:document => lies, :external_document => memo)
+    let :press_release_attributes do
+      default_attributes.merge(document: {}, external_document: truth)
     end
 
-    let(:press_release) { Post.create!(press_release_attributes) }
-
-    it "tracks updated at for document" do
-      previous_update = press_release.document_updated_at
-      previous_sync = press_release.external_document_updated_at
-      press_release.document = lies.merge!('casualties' => 'none')
-      press_release.save!
-      press_release.document_updated_at.should > previous_update
-      press_release.external_document_updated_at.should == previous_sync
+    let :press_release do
+      Post.create!(press_release_attributes)
     end
 
-    it "tracks updated at for external document" do
-      previous_update = press_release.document_updated_at
-      previous_sync = press_release.external_document_updated_at
-      press_release.external_document = memo.merge!('casualties' => '4')
-      press_release.save!
-      press_release.document_updated_at.should == previous_update
-      press_release.external_document_updated_at.should > previous_sync
+    describe "conflicts" do
+      context "without external document" do
+        it "isn't conflicted" do
+          article.conflicted?.should eq false
+        end
+      end
+
+      context "with only an external document" do
+        it "isn't conflicted" do
+          doc = Post.create!(default_attributes.merge(
+            document: nil,
+            external_document: {text: '1'}))
+          doc.conflicted?.should eq false
+        end
+      end
+    end
+
+    describe 'timestamps' do
+      it "updating document with no changes does not affect timestamp" do
+        previous_update = press_release.document_updated_at
+        previous_sync = press_release.external_document_updated_at
+
+        press_release.document = {}
+        press_release.save!
+
+        press_release.document_updated_at.should eq previous_update
+        press_release.external_document_updated_at.should eq previous_sync
+      end
+
+      it "updating external document with no changes does not affect timestamp" do
+        previous_update = press_release.document_updated_at
+        previous_sync = press_release.external_document_updated_at
+
+        press_release.external_document = press_release.external_document.dup
+        press_release.save!
+
+        press_release.document_updated_at.should eq previous_update
+        press_release.external_document_updated_at.should eq previous_sync
+      end
+
+      it "updating document changes its timestamp, but not external document's timestamp" do
+        previous_update = press_release.document_updated_at
+        previous_sync = press_release.external_document_updated_at
+
+        press_release.document = {cause: 'weather balloon'}
+        press_release.save!
+
+        press_release.document_updated_at.should > previous_update
+        press_release.external_document_updated_at.should == previous_sync
+      end
+
+      it "updating external document changes its timestamp, but document's timestamp" do
+        previous_update = press_release.document_updated_at
+        previous_sync = press_release.external_document_updated_at
+
+        press_release.external_document = {casualties: 4}
+        press_release.save!
+
+        press_release.document_updated_at.should == previous_update
+        press_release.external_document_updated_at.should > previous_sync
+      end
     end
 
     describe "merged value" do
@@ -371,37 +392,42 @@ describe Post do
       end
 
       it "gets overridden by values in document" do
-        lies.merge!('cause' => 'mining accident')
-        press_release.merged_document['cause'].should eq 'mining accident'
+        post = Post.create!(press_release_attributes)
+        post.document = {cause: 'mining accident'}
+        post.merged_document['cause'].should eq 'mining accident'
+      end
+
+      it 'preserves untouched document keys' do
+        post = Post.create!(press_release_attributes.merge(document: {cause: 'mining accident'}))
+        post.merged_document['observed'].should eq 'explosion'
+      end
+
+      it 'preserves document keys that are the same as external document' do
+        press_release.document = press_release.external_document
+        press_release.document.empty?.should eq true
       end
     end
 
     context "with a newer sync than document" do
       it "is conflicted with overridden keys" do
-        lies.merge!('cause' => 'mining accident')
-        press_release # trigger creation with override
-        press_release.external_document = memo.merge!('location' => 'the desert')
-        press_release.save
-        press_release.conflicted?.should == true
+        post = Post.create!(press_release_attributes.merge(document: {cause: 'mining accident'}))
+        post.external_document = {cause: 'alien aircraft crash'}
+        post.save
+        post.conflicted?.should eq true
       end
 
       it "is not conflicted without overridden keys" do
-        press_release # trigger creation without override
-        press_release.external_document = memo.merge!('casualties' => '4')
+        press_release.external_document = truth.merge(casualties: 4)
         press_release.save
-        press_release.conflicted?.should == false
+        press_release.conflicted?.should eq false
       end
     end
 
     context "when document is newer than sync" do
-      before(:each) do
-        press_release # trigger creation
-        press_release.document = lies.merge!('casualties' => 'none')
-        press_release.save!
-      end
-
       it "is not conflicted" do
-        press_release.conflicted?.should == false
+        post = Post.create!(press_release_attributes)
+        post.document = {casualties: 0}
+        post.conflicted?.should eq false
       end
     end
   end
